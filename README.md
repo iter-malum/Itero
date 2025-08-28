@@ -1,6 +1,6 @@
-# RuleSmith 🛠️
+# Itero 🛠️
 
-RuleSmith is a multi-agent LLM system designed to automate the creation and updating of static code analysis rules for Semgrep. By describing a vulnerability in natural language, RuleSmith intelligently searches for existing patterns, crafts new precise rules, and validates them against your code—dramatically reducing the manual effort required for security tooling maintenance.
+Itero is a multi-agent LLM system designed to automate the creation and updating of static code analysis rules for Semgrep. By describing a vulnerability in natural language, Itero intelligently searches for existing patterns, crafts new precise rules, and validates them against your code—dramatically reducing the manual effort required for security tooling maintenance.
 
 ## Key Features
 
