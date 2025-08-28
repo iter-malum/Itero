@@ -90,15 +90,20 @@ echo -n "Создание структуры папок... "
 mkdir -p data/raw_rules data/generated_rules logs tests scripts agents core utils config > /dev/null 2>&1
 check_success
 
-# Копирование примеров правил Semgrep (если есть)
-if [ -d "semgrep_rules" ]; then
-    echo -n "Копирование существующих правил... "
-    cp -r semgrep_rules/* data/raw_rules/ > /dev/null 2>&1
-    check_success
-else
-    echo -e "${YELLOW}Предупреждение: Папка semgrep_rules не найдена. Создайте её и добавьте правила Semgrep.${NC}"
-    mkdir -p semgrep_rules > /dev/null 2>&1
-fi
+# Клонирование официального репозитория правил Semgrep
+echo -n "Клонирование официального репозитория semgrep-rules... "
+git clone https://github.com/semgrep/semgrep-rules.git data/official_rules > /dev/null 2>&1
+check_success
+
+# Копирование правил в raw_rules
+echo -n "Копирование официальных правил в рабочую директорию... "
+cp -r data/official_rules/* data/raw_rules/ > /dev/null 2>&1
+check_success
+
+# Удаление временных файлов (опционально)
+echo -n "Очистка временных файлов... "
+rm -rf data/official_rules/.git data/official_rules/README.md > /dev/null 2>&1
+check_success
 
 # Построение векторной базы данных
 echo -n "Построение векторной базы данных... "

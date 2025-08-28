@@ -38,57 +38,70 @@ class VectorDBManager:
     def load_and_process_rules(self, rules_directory: str) -> List[Dict[str, Any]]:
         """
         Загружает и обрабатывает все YAML файлы правил из указанной директории.
-        
-        Args:
-            rules_directory (str): Путь к директории с правилами Semgrep (.yaml/.yml файлы)
-            
-        Returns:
-            List[Dict]: Список словарей с данными каждого правила
+        Рекурсивно обрабатывает поддиректории.
         """
         processed_rules = []
         
         if not os.path.exists(rules_directory):
             raise FileNotFoundError(f"Директория с правилами не найдена: {rules_directory}")
         
-        for filename in os.listdir(rules_directory):
-            if filename.endswith(('.yaml', '.yml')):
-                filepath = os.path.join(rules_directory, filename)
-                try:
-                    with open(filepath, 'r', encoding='utf-8') as file:
-                        rule_data = yaml.safe_load(file)
-                        
-                        # Извлекаем информацию о каждом правиле в файле
-                        for rule in rule_data.get('rules', []):
-                            rule_id = rule.get('id', '')
-                            rule_message = rule.get('message', '')
-                            rule_severity = rule.get('severity', '')
-                            rule_languages = rule.get('languages', [])
-                            rule_patterns = str(rule.get('patterns', []))
-                            
-                            # Создаем объединенный текст для эмбеддинга
-                            combined_text = f"""
-                            ID: {rule_id}
-                            Message: {rule_message}
-                            Severity: {rule_severity}
-                            Languages: {rule_languages}
-                            Patterns: {rule_patterns}
-                            """
-                            
-                            processed_rules.append({
-                                'id': rule_id,
-                                'message': rule_message,
-                                'severity': rule_severity,
-                                'languages': rule_languages,
-                                'patterns': rule_patterns,
-                                'combined_text': combined_text,
-                                'source_file': filename
-                            })
-                            
-                except Exception as e:
-                    logger.error(f"Ошибка при обработке файла {filename}: {str(e)}")
-                    continue
+        # Рекурсивно ищем все YAML файлы
+        yaml_files = []
+        for root, dirs, files in os.walk(rules_directory):
+            for filename in files:
+                if filename.endswith(('.yaml', '.yml')):
+                    yaml_files.append(os.path.join(root, filename))
         
-        logger.info(f"Успешно обработано {len(processed_rules)} правил из директории {rules_directory}")
+        for filepath in yaml_files:
+            try:
+                with open(filepath, 'r', encoding='utf-8') as file:
+                    rule_data = yaml.safe_load(file)
+                    
+                    # Пропускаем файлы без правил
+                    if not rule_data or 'rules' not in rule_data:
+                        continue
+                    
+                    # Извлекаем информацию о каждом правиле в файле
+                    for rule in rule_data.get('rules', []):
+                        rule_id = rule.get('id', '')
+                        rule_message = rule.get('message', '')
+                        rule_severity = rule.get('severity', '')
+                        rule_languages = rule.get('languages', [])
+                        
+                        # Извлекаем метаданные для улучшения поиска
+                        metadata = rule.get('metadata', {})
+                        rule_category = metadata.get('category', '')
+                        rule_technology = metadata.get('technology', [])
+                        rule_cwe = metadata.get('cwe', [])
+                        
+                        # Создаем объединенный текст для эмбеддинга
+                        combined_text = f"""
+                        ID: {rule_id}
+                        Message: {rule_message}
+                        Severity: {rule_severity}
+                        Languages: {rule_languages}
+                        Category: {rule_category}
+                        Technology: {rule_technology}
+                        CWE: {rule_cwe}
+                        """
+                        
+                        processed_rules.append({
+                            'id': rule_id,
+                            'message': rule_message,
+                            'severity': rule_severity,
+                            'languages': rule_languages,
+                            'category': rule_category,
+                            'technology': rule_technology,
+                            'cwe': rule_cwe,
+                            'combined_text': combined_text,
+                            'source_file': os.path.relpath(filepath, rules_directory)
+                        })
+                        
+            except Exception as e:
+                logger.error(f"Ошибка при обработке файла {filepath}: {str(e)}")
+                continue
+        
+        logger.info(f"Успешно обработано {len(processed_rules)} правил из {len(yaml_files)} файлов")
         return processed_rules
 
     def build_vector_db(self, rules_directory: str):
