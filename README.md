@@ -1,4 +1,4 @@
-<img width="513" height="698" alt="image" src="https://github.com/user-attachments/assets/5852c852-2f75-463a-aeb1-e4aecce2d10c" /># Itero 🛠️
+# Itero 🛠️
 
 Itero is a multi-agent LLM system designed to automate the creation and updating of static code analysis rules for Semgrep. By describing a vulnerability in natural language, Itero intelligently searches for existing patterns, crafts new precise rules, and validates them against your code—dramatically reducing the manual effort required for security tooling maintenance.
 
