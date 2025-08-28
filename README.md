@@ -42,3 +42,9 @@ Itero is a multi-agent LLM system designed to automate the creation and updating
 [Function Call] Агент-Валидатор -> Semgrep Runner -> [System Call] -> Semgrep CLI
 [Data] Semgrep CLI -> [Stdout/Stderr] -> Semgrep Runner (парсит JSON)
 [Data] Результат парсинга (успех/ошибка) -> Агент-Валидатор -> Агент-Координатор
+
+
+Инструкция по использованию:
+
+1. chmod +x setup_ubuntu.sh run_tests.sh start_system.sh
+2. ./setup_ubuntu.sh ./run_tests.sh ./start_system.sh
