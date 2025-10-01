@@ -174,67 +174,173 @@ class Orchestrator:
         logger.info("Workflow завершен успешно!")
         return result
 
-    def run_interactive_workflow(self):
+    def run_interactive_creation_flow(self, code_snippet: str, vulnerability_description: str) -> Dict[str, Any]:
         """
-        Запускает интерактивный режим работы с пользователем.
-        """
-        print("=" * 60)
-        print("МУЛЬТИАГЕНТНАЯ СИСТЕМА ДЛЯ СОЗДАНИЯ ПРАВИЛ SEMGREP")
-        print("=" * 60)
+        Новый workflow с выбором пользователя: доработать правило или создать новое.
         
-        while True:
-            print("\nВведите описание уязвимости (или 'quit' для выхода):")
-            description = input().strip()
+        Args:
+            code_snippet: Код с уязвимостью
+            vulnerability_description: Описание уязвимости
             
-            if description.lower() == 'quit':
-                break
+        Returns:
+            Словарь с результатами workflow
+        """
+        logger.info(f"Запуск интерактивного workflow для: {vulnerability_description}")
+        
+        # Шаг 1: Поиск существующих правил
+        logger.info("Шаг 1: Поиск существующих правил...")
+        search_result_str = self.search_agent.find_relevant_rules(vulnerability_description, n_results=5)
+        
+        # Шаг 2: Парсинг результатов поиска для показа пользователю
+        similar_rules_parsed = self._parse_search_results(search_result_str)
+        
+        # Шаг 3: Диалог с пользователем
+        print("\n" + "=" * 50)
+        print("НАЙДЕНЫ СЛЕДУЮЩИЕ ПОХОЖИЕ ПРАВИЛА:")
+        for i, rule in enumerate(similar_rules_parsed):
+            print(f"{i+1}. ID: {rule['id']}")
+            print(f"   Сообщение: {rule['message']}")
+            print(f"   Степень соответствия: {rule.get('similarity', 'N/A')}")
+            print()
+        
+        print(f"{len(similar_rules_parsed)+1}. 📝 СОЗДАТЬ НОВОЕ ПРАВИЛО С НУЛЯ")
+        print("=" * 50)
+        
+        try:
+            choice = int(input("\nВыберите опцию (введите номер): "))
+        except ValueError:
+            print("❌ Некорректный ввод. Создается новое правило.")
+            choice = len(similar_rules_parsed) + 1
+        
+        # Шаг 4: Обработка выбора пользователя
+        if 1 <= choice <= len(similar_rules_parsed):
+            # Пользователь выбрал доработку правила
+            selected_rule = similar_rules_parsed[choice-1]
+            logger.info(f"Пользователь выбрал доработать правило: {selected_rule['id']}")
+            
+            # Загружаем полное YAML-содержимое выбранного правила
+            full_rule_yaml = self.vector_db_manager.get_rule_yaml_by_id(selected_rule['id'])
+            
+            if not full_rule_yaml:
+                return {
+                    "success": False,
+                    "error": f"Не удалось загрузить правило с ID: {selected_rule['id']}",
+                    "step": "rule_loading"
+                }
+            
+            # Передаем агенту на доработку
+            rule_result = self.rule_engineer_agent.refine_existing_rule(
+                base_rule_yaml=full_rule_yaml,
+                problem_description=vulnerability_description,
+                code_example=code_snippet,
+                original_rule_id=selected_rule['id']
+            )
+        else:
+            # Пользователь выбрал создание нового правила
+            logger.info("Пользователь выбрал создание нового правила с нуля")
+            rule_result = self.rule_engineer_agent.create_or_update_rule(
+                problem_description=vulnerability_description,
+                code_example=code_snippet,
+                similar_rules=None  # Создаем с нуля
+            )
+        
+        # Проверяем успешность создания/доработки правила
+        if not rule_result["success"]:
+            return {
+                "success": False,
+                "error": rule_result["message"],
+                "step": "rule_creation"
+            }
+        
+        # Шаг 5: Подготовка тестовых примеров и валидация
+        logger.info("Шаг 5: Подготовка тестовых примеров...")
+        positive_test = self.create_positive_test_case(code_snippet, vulnerability_description)
+        negative_test = self.create_negative_test_case(code_snippet, vulnerability_description)
+        
+        logger.info("Шаг 6: Валидация правила...")
+        validation_result = self.validation_agent.validate_rule(
+            rule_yaml=rule_result["rule_yaml"],
+            positive_test=positive_test,
+            negative_test=negative_test,
+            rule_id=rule_result.get("rule_id", "new_rule")
+        )
+        
+        # Шаг 7: Сохранение правила
+        logger.info("Шаг 7: Сохранение правила...")
+        if validation_result.get("validation_passed", False):
+            try:
+                import yaml
+                rule_data = yaml.safe_load(rule_result["rule_yaml"])
+                rule_id = rule_data["rules"][0]["id"] if rule_data and "rules" in rule_data else "new_rule"
+                filename = f"{rule_id}.yaml"
+            except:
+                filename = None
                 
-            print("\nВведите код с уязвимостью (завершите пустой строкой):")
-            code_lines = []
-            while True:
-                line = input()
-                if line.strip() == "":
-                    break
-                code_lines.append(line)
+            saved_path = self.rule_engineer_agent.save_rule_to_file(
+                rule_result["rule_yaml"], filename
+            )
+        else:
+            saved_path = None
+            logger.warning("Правило не прошло валидацию, но будет сохранено для анализа")
+        
+        # Формируем финальный результат
+        result = {
+            "success": True,
+            "user_choice": "refine" if 1 <= choice <= len(similar_rules_parsed) else "create_new",
+            "selected_rule_id": similar_rules_parsed[choice-1]["id"] if 1 <= choice <= len(similar_rules_parsed) else None,
+            "search_result": search_result_str,
+            "rule_creation_success": rule_result["success"],
+            "validation_passed": validation_result.get("validation_passed", False),
+            "rule_yaml": rule_result["rule_yaml"],
+            "validation_report": validation_result.get("llm_analysis", ""),
+            "saved_path": saved_path,
+            "is_new_rule": rule_result.get("is_new", True)
+        }
+        
+        logger.info("Интерактивный workflow завершен!")
+        return result
+    def _parse_search_results(self, search_result_str: str) -> List[Dict]:
+        """
+        Парсит строку с результатами поиска в структурированный список правил.
+        
+        Args:
+            search_result_str: Строка с результатами поиска от SearchAgent
             
-            code_snippet = "\n".join(code_lines)
+        Returns:
+            Список словарей с информацией о правилах
+        """
+        similar_rules = []
+        
+        try:
+            # Разбиваем результат на строки и парсим
+            lines = search_result_str.split('\n')
+            current_rule = {}
             
-            if not code_snippet:
-                print("Код не может быть пустым!")
-                continue
+            for line in lines:
+                line = line.strip()
+                if line.startswith('ID:'):
+                    if current_rule and 'id' in current_rule:
+                        similar_rules.append(current_rule)
+                    current_rule = {'id': line.replace('ID:', '').strip()}
+                elif line.startswith('Message:'):
+                    current_rule['message'] = line.replace('Message:', '').strip()
+                elif line.startswith('Similarity:'):
+                    similarity_str = line.replace('Similarity:', '').strip()
+                    try:
+                        current_rule['similarity'] = float(similarity_str)
+                    except ValueError:
+                        current_rule['similarity'] = similarity_str
+                elif line.startswith('Source:'):
+                    current_rule['source'] = line.replace('Source:', '').strip()
+            
+            # Добавляем последнее правило
+            if current_rule and 'id' in current_rule:
+                similar_rules.append(current_rule)
                 
-            print("\nОбработка запроса...")
-            result = self.run_full_workflow(code_snippet, description)
-            
-            print("\n" + "=" * 40)
-            print("РЕЗУЛЬТАТЫ ОБРАБОТКИ")
-            print("=" * 40)
-            
-            if result["success"]:
-                print("✓ Workflow завершен успешно!")
-                print(f"\nПоиск: Найдено {result['search_result'].count('ID:')} релевантных правил")
-                print(f"Создание правила: {'Успех' if result['rule_creation_success'] else 'Неудача'}")
-                print(f"Валидация: {'Пройдена' if result['validation_passed'] else 'Не пройдена'}")
-                print(f"Тип: {'Новое правило' if result['is_new_rule'] else 'Обновление правила'}")
-                
-                if result["saved_path"]:
-                    print(f"Сохранено в: {result['saved_path']}")
-                    
-                print("\nОтчет о валидации:")
-                print(result["validation_report"])
-                
-                print("\nСодержимое правила:")
-                print(result["rule_yaml"])
-            else:
-                print("✗ Workflow завершен с ошибкой:")
-                print(f"Этап: {result.get('step', 'unknown')}")
-                print(f"Ошибка: {result.get('error', 'Неизвестная ошибка')}")
-                
-                if "rule_yaml" in result:
-                    print("\nЧастично созданное правило:")
-                    print(result["rule_yaml"])
-            
-            print("\n" + "=" * 40)
+        except Exception as e:
+            logger.error(f"Ошибка при парсинге результатов поиска: {str(e)}")
+        
+        return similar_rules
 
 def main():
     """Основная функция для запуска оркестратора."""

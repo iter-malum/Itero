@@ -1,0 +1,33 @@
+=== Правило: razor-template-injection ===
+=== PROMPT ===
+На языке csharp найди проблему: User-controllable string passed to Razor.Parse. This leads directly to code execution in the context of the process.
+Уязвимый код:
+```csharp
+
+```
+Безопасный код:
+```csharp
+
+```
+```csharp
+            // ok: razor-template-injection
+            ViewBag.RenderedTemplate = Razor.Parse(junk);
+            ViewBag.Template = razorTpl;
+            return View();
+        }
+    }
+}
+```...
+
+
+=== COMPLETION ===
+```yaml
+rules:
+- id: razor-template-injection
+  languages:
+  - csharp
+  message: User-controllable string passed to Razor.Parse. This leads directly to code execution in the context of the process.
+  severity: WARNING
+```...
+
+==================================================

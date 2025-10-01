@@ -1,0 +1,49 @@
+# Конфигурация для обучения с QLoRA
+model_name: "codellama/CodeLlama-7b-hf"
+load_in_4bit: true
+bnb_4bit_quant_type: "nf4"
+bnb_4bit_compute_dtype: "float16"
+bnb_4bit_use_double_quant: true
+
+# Параметры LoRA
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+lora_target_modules:
+  - "q_proj"
+  - "k_proj"
+  - "v_proj"
+  - "o_proj"
+  - "gate_proj"
+  - "up_proj"
+  - "down_proj"
+
+# Параметры обучения
+output_dir: "../outputs/codeLlama-7b-semgrep-lora"
+num_train_epochs: 3
+per_device_train_batch_size: 1
+per_device_eval_batch_size: 1
+gradient_accumulation_steps: 8
+optim: "paged_adamw_32bit"
+learning_rate: 2.0e-4
+weight_decay: 0.001
+fp16: true
+tf32: true
+max_grad_norm: 0.3
+max_steps: -1
+warmup_ratio: 0.03
+lr_scheduler_type: "cosine"
+
+# Логирование и сохранение
+logging_dir: "../logs"
+logging_steps: 10
+save_strategy: "epoch"
+save_total_limit: 2
+eval_strategy: "epoch"
+eval_steps: 500
+predict_with_generation: True
+
+# Данные
+dataset_name: "../data/processed/semgrep_training_data.jsonl"
+max_seq_length: 4096
+packing: false

@@ -80,6 +80,110 @@ class RuleEngineerAgent:
             logger.error(f"Невалидный YAML: {str(e)}")
             return False
 
+    def refine_existing_rule(self, base_rule_yaml: str, problem_description: str, 
+                        code_example: str = None, original_rule_id: str = None) -> Dict[str, Any]:
+        """
+        Дорабатывает существующее правило на основе нового описания проблемы.
+        
+        Args:
+            base_rule_yaml: YAML существующего правила
+            problem_description: Описание новой уязвимости
+            code_example: Пример кода с уязвимостью (опционально)
+            original_rule_id: ID оригинального правила (для отслеживания)
+            
+        Returns:
+            Словарь с результатом доработки
+        """
+        try:
+            # Создаем UserProxyAgent для взаимодействия
+            user_proxy = autogen.UserProxyAgent(
+                name="User_Proxy",
+                human_input_mode="NEVER",
+                code_execution_config={"work_dir": "coding", "use_docker": False},
+                max_consecutive_auto_reply=2,
+            )
+            
+            # Формируем специализированное сообщение для доработки
+            message = f"""
+            НЕОБХОДИМО ДОРАБОТАТЬ СУЩЕСТВУЮЩЕЕ ПРАВИЛО SEMGREP:
+
+            ОРИГИНАЛЬНОЕ ПРАВИЛО (ID: {original_rule_id or 'unknown'}):
+            ```yaml
+            {base_rule_yaml}
+            ```
+
+            НОВАЯ УЯЗВИМОСТЬ ДЛЯ ОБНАРУЖЕНИЯ:
+            {problem_description}
+            """
+            
+            if code_example:
+                message += f"""
+
+            ПРИМЕР КОДА С НОВОЙ УЯЗВИМОСТЬЮ:
+            ```python
+            {code_example}
+            ```
+            """
+            
+            message += """
+
+            ЗАДАЧА:
+            - Сохраните структуру и формат оригинального правила
+            - Добавьте необходимые паттерны для обнаружения новой уязвимости
+            - Не удаляйте существующую функциональность правила
+            - Обновите ID правила, добавив суффикс (например, "_enhanced")
+            - При необходимости обновите поле message, чтобы отразить расширенную функциональность
+
+            Верните только доработанное YAML-правило без дополнительных комментариев.
+            """
+            
+            # Запускаем диалог
+            user_proxy.initiate_chat(
+                self.agent,
+                message=message,
+            )
+            
+            # Получаем и обрабатываем ответ агента
+            last_message = self.agent.last_message()
+            if last_message and "content" in last_message:
+                response_content = last_message["content"]
+                
+                # Извлекаем YAML из ответа
+                yaml_content = self.extract_yaml_from_response(response_content)
+                
+                if yaml_content and self.validate_yaml(yaml_content):
+                    return {
+                        'success': True,
+                        'rule_yaml': yaml_content,
+                        'message': "Правило успешно доработано",
+                        'is_new': False,  # Это доработанное правило
+                        'original_rule_id': original_rule_id
+                    }
+                else:
+                    return {
+                        'success': False,
+                        'rule_yaml': None,
+                        'message': "Не удалось извлечь валидный YAML из ответа агента при доработке",
+                        'is_new': False
+                    }
+            else:
+                return {
+                    'success': False,
+                    'rule_yaml': None,
+                    'message': "Агент не вернул ответ при доработке правила",
+                    'is_new': False
+                }
+                
+        except Exception as e:
+            error_msg = f"Ошибка при доработке правила: {str(e)}"
+            logger.error(error_msg)
+            return {
+                'success': False,
+                'rule_yaml': None,
+                'message': error_msg,
+                'is_new': False
+            }
+
     def create_or_update_rule(self, problem_description: str, code_example: str = None, 
                              similar_rules: List[Dict] = None) -> Dict[str, Any]:
         """

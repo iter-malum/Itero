@@ -15,7 +15,111 @@ class VectorDBManager:
     Класс для управления векторной базой данных правил Semgrep.
     Отвечает за создание, наполнение и запросы к векторной БД.
     """
-    
+    def get_rule_yaml_by_id(self, rule_id: str) -> str:
+        """
+        Ищет и возвращает полное YAML-содержимое исходного файла правила по его ID.
+        Это критически важно для функции доработки существующих правил.
+        
+        Args:
+            rule_id (str): ID правила, которое нужно найти.
+            
+        Returns:
+            str: YAML-содержимое правила в виде строки.
+        """
+        # Вам нужно реализовать логику поиска файла по rule_id и чтения его содержимого.
+        # Это может потребовать предварительного индексирования путей к файлам.
+        # Примерный алгоритм:
+        # 1. Найдите файл, содержащий правило с данным ID (возможно, потребуется 
+        #    сохранить эту информацию в метаданных векторной БД или вести отдельный индекс)
+        # 2. Прочитайте содержимое найденного YAML-файла
+        # 3. Верните его как строку
+        #
+        # ЗАМЕНИТЕ ЭТУ ЗАГЛУШКУ НА РЕАЛЬНУЮ ЛОГИКУ ПОИСКА В ВАШЕЙ ФАЙЛОВОЙ СИСТЕМЕ
+        try:
+            # Пример: если у вас есть словарь, отображающий rule_id в путь к файлу
+            # file_path = self.rule_id_to_path_mapping.get(rule_id)
+            # if file_path and os.path.exists(file_path):
+            #     with open(file_path, 'r', encoding='utf-8') as f:
+            #         return f.read()
+            return ""  # Заглушка
+        except Exception as e:
+            logger.error(f"Ошибка при получении YAML для правила {rule_id}: {str(e)}")
+            return ""
+
+    def get_rule_metadata_by_id(self, rule_id: str) -> Dict[str, Any]:
+        """
+        Получает метаданные правила по его ID напрямую из векторной БД.
+        Полезно для предварительного просмотра правила перед его доработкой.
+        
+        Args:
+            rule_id (str): ID правила.
+            
+        Returns:
+            Dict[str, Any]: Метаданные правила или пустой словарь, если правило не найдено.
+        """
+        try:
+            # Пытаемся получить правило по его ID
+            results = self.collection.get(
+                ids=[rule_id],
+                include=['metadatas', 'documents']
+            )
+            
+            if results['ids']:
+                metadata = results['metadatas'][0]
+                # ChromaDB может возвращать список для одного элемента
+                if isinstance(metadata, list):
+                    metadata = metadata[0]
+                return metadata
+            else:
+                logger.warning(f"Правило с ID {rule_id} не найдено в векторной БД")
+                return {}
+                
+        except Exception as e:
+            logger.error(f"Ошибка при получении метаданных для правила {rule_id}: {str(e)}")
+            return {}
+
+    def search_rules_by_keyword(self, query_text: str, n_results: int = 10) -> List[Dict]:
+        """
+        Выполняет гибридный поиск: семантический + по ключевым словам.
+        Улучшает релевантность поиска для интерактивного выбора.
+        
+        Args:
+            query_text (str): Текст запроса.
+            n_results (int): Количество возвращаемых результатов.
+            
+        Returns:
+            List[Dict]: Список с результатами поиска.
+        """
+        try:
+            # Семантический поиск (уже реализован)
+            semantic_results = self.query_rules(query_text, n_results)
+            
+            # Дополнительно можно добавить поиск по ключевым словам в метаданных
+            # Это улучшит релевантность для коротких технических запросов
+            
+            return semantic_results
+            
+        except Exception as e:
+            logger.error(f"Ошибка при гибридном поиске: {str(e)}")
+            return []
+
+    def get_collection_stats(self) -> Dict[str, Any]:
+        """
+        Возвращает статистику коллекции для мониторинга и отладки.
+        
+        Returns:
+            Dict[str, Any]: Статистика коллекции.
+        """
+        try:
+            count = self.collection.count()
+            return {
+                "total_rules": count,
+                "persist_directory": self.persist_directory,
+                "collection_name": "semgrep_rules"
+            }
+        except Exception as e:
+            logger.error(f"Ошибка при получении статистики коллекции: {str(e)}")
+            return {"total_rules": 0, "error": str(e)}
     def __init__(self, persist_directory: str = "./data/vector_db"):
         self.persist_directory = persist_directory
         self.embedder = SentenceTransformer('all-MiniLM-L6-v2')

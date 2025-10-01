@@ -1,0 +1,20 @@
+{
+  "agents": {
+    "Search_Agent": {
+      "model_name": "deepseek-coder:6.7b",
+      "purpose": "Поиск и анализ уязвимостей, формулирование запросов",
+      "type": "ollama"
+    },
+    "Rule_Engineer_Agent": {
+      "model_name": "codeLlama-7b-semgrep-lora",
+      "purpose": "Создание и модификация правил Semgrep",
+      "type": "local",
+      "modelfile_path": "./models/Modelfile_codeLlama-7b-semgrep-lora"
+    },
+    "Validation_Agent": {
+      "model_name": "deepseek-coder:6.7b", 
+      "purpose": "Валидация сгенерированных правил",
+      "type": "ollama"
+    }
+  }
+}

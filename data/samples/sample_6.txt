@@ -1,0 +1,40 @@
+=== PROMPT ===
+На языке csharp найди проблему: Usage of deprecated cipher algorithm detected. Use Aes or ChaCha20Poly1305 instead.
+Уязвимый код:
+```csharp
+		var key = DES.Create();
+	}
+	
+	public void CreateDES2() {
+```
+Безопасный код:
+```csharp
+		var key = Aes.Create();
+	}
+	
+	public void CreateAes2() {
+```
+```csharp
+		var key = Aes.Create("ImplementationName");
+	}
+
+	public void CreateRijndael1() {
+```
+
+=== COMPLETION ===
+```yaml
+rules:
+- id: use_deprecated_cipher_algorithm
+  languages:
+  - csharp
+  message: Usage of deprecated cipher algorithm detected. Use Aes or ChaCha20Poly1305 instead.
+  patterns:
+  - pattern: $KEYTYPE.Create(...);
+  - metavariable-pattern:
+      metavariable: $KEYTYPE
+      pattern-either:
+      - pattern: DES
+      - pattern: RC2
+  severity: ERROR
+```
+

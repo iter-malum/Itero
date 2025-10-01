@@ -1,0 +1,39 @@
+=== PROMPT ===
+На языке generic найди проблему: ASP.NET applications built with `debug` set to true in production may leak debug information to attackers. Debug mode also affects performance and reliability. Set `debug` to `false` or remove it from `<compilation ... />`
+Уязвимый код:
+```generic
+    <compilation
+      defaultLanguage="c#"
+      debug="true"
+    />
+    <trace enabled="true" requestLimit="10" pageOutput="false" traceMode="SortByTime" localOnly="true"/>
+  </system.web>
+</configuration>
+
+<configuration>
+  <system.web>
+```
+Безопасный код:
+```generic
+    <compilation
+      defaultLanguage="c#"
+    />
+  </system.web>
+</configuration>
+```
+
+=== COMPLETION ===
+```yaml
+rules:
+- id: net-webconfig-debug
+  languages:
+  - generic
+  message: ASP.NET applications built with `debug` set to true in production may leak debug information to attackers. Debug mode also affects performance and reliability. Set `debug` to `false` or remove it from `<compilation ... />`
+  patterns:
+  - pattern: '<compilation ... debug = "true" ... />
+
+      '
+  - pattern-inside: "<system.web>\n  ...\n</system.web>\n"
+  severity: WARNING
+```
+
