@@ -6,14 +6,15 @@
       "type": "ollama"
     },
     "Rule_Engineer_Agent": {
-      "model_name": "codeLlama-7b-semgrep-lora",
+      "model_name": "codellama/CodeLlama-7b-hf",
+      "lora_adapters": "../outputs/codeLlama-7b-semgrep-lora",
       "purpose": "Создание и модификация правил Semgrep",
-      "type": "local",
-      "modelfile_path": "./models/Modelfile_codeLlama-7b-semgrep-lora"
+      "type": "local_peft",
+      "offload_dir": "./offload"
     },
     "Validation_Agent": {
-      "model_name": "deepseek-coder:6.7b", 
-      "purpose": "Валидация сгенерированных правил",
+      "model_name": "deepseek-coder:6.7b",
+      "purpose": "Валидация сгенерированных правил", 
       "type": "ollama"
     }
   }

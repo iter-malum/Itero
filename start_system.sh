@@ -78,6 +78,28 @@ ensure_local_model_loaded() {
     echo "----------------------------------------------"
 }
 
+ensure_peft_model_loaded() {
+    local base_model="$1"
+    local lora_path="$2"
+    local purpose="$3"
+    
+    echo "Проверка PEFT модели: $base_model + $lora_path"
+    echo "Назначение: $purpose"
+    
+    # Проверка существования пути с адаптерами
+    if [ -d "$lora_path" ]; then
+        echo "✅ Адаптеры LoRA найдены по пути: $lora_path"
+        # Можно добавить проверку наличия необходимых файлов
+        if [ -f "$lora_path/adapter_model.safetensors" ]; then
+            echo "✅ Файл весов адаптера найден"
+        fi
+    else
+        echo "❌ Адаптеры LoRA не найдены по пути: $lora_path"
+        return 1
+    fi
+    echo "----------------------------------------------"
+}
+
 # Основной процесс запуска
 main() {
     # Запуск Ollama если не запущен

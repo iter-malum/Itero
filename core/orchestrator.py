@@ -20,27 +20,24 @@ class Orchestrator:
     """
     
     def __init__(self):
-        """Инициализация всех компонентов системы."""
         self.llm_config = LLM_CONFIG
+        
+        # Загружаем конфигурацию моделей
+        with open('model_config.json', 'r') as f:
+            self.model_config = json.load(f)
         
         # Инициализация менеджера векторной БД
         self.vector_db_manager = VectorDBManager()
         
-        # Инициализация агентов
+        # Инициализация агентов с конфигурацией моделей
         self.search_agent = SearchAgent(self.llm_config, self.vector_db_manager)
-        self.rule_engineer_agent = RuleEngineerAgent(self.llm_config)
+        self.rule_engineer_agent = RuleEngineerAgent(
+            self.llm_config, 
+            self.model_config['agents']['Rule_Engineer_Agent']
+        )
         self.validation_agent = ValidationAgent(self.llm_config)
         
-        # Создание UserProxyAgent для управления диалогом
-        self.user_proxy = autogen.UserProxyAgent(
-            name="User_Proxy",
-            human_input_mode="NEVER",
-            code_execution_config={"work_dir": "coding", "use_docker": False},
-            max_consecutive_auto_reply=10,
-            human_input_mode="NEVER",
-        )
-        
-        logger.info("Orchestrator инициализирован со всеми агентами")
+        logger.info("Orchestrator инициализирован с дообученной моделью")
 
     def create_positive_test_case(self, code_snippet: str, vulnerability_description: str) -> str:
         """

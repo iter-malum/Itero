@@ -15,24 +15,80 @@ class RuleEngineerAgent:
     Агент для создания и модификации правил Semgrep.
     """
     
-    def __init__(self, llm_config: Dict[str, Any]):
-        """
-        Инициализация Rule Engineer Agent.
-        
-        Args:
-            llm_config: Конфигурация LLM для AutoGen
-        """
+    def __init__(self, llm_config: Dict[str, Any], model_config: Dict[str, Any] = None):
         self.llm_config = llm_config or RULE_ENGINEER_LLM_CONFIG
         
-        # Создание агента AutoGen
-        self.agent = autogen.AssistantAgent(
-            name="Rule_Engineer_Agent",
-            system_message=RULE_ENGINEER_AGENT_SYSTEM_MESSAGE,
-            llm_config=self.llm_config,
-        )
-        
-        logger.info("Rule Engineer Agent инициализирован")
+        # Загрузка дообученной модели если указана в конфиге
+        if model_config and model_config.get('type') == 'local_peft':
+            from core.model_loader import load_peft_model
+            self.model, self.tokenizer = load_peft_model(
+                model_config['model_name'],
+                model_config['lora_adapters'],
+                model_config.get('offload_dir', './offload')
+            )
+            self.use_fine_tuned_model = True
+            logger.info("Rule Engineer Agent с дообученной моделью инициализирован")
+        else:
+            # Стандартная инициализация с AutoGen
+            self.agent = autogen.AssistantAgent(
+                name="Rule_Engineer_Agent",
+                system_message=RULE_ENGINEER_AGENT_SYSTEM_MESSAGE,
+                llm_config=self.llm_config,
+            )
+            self.use_fine_tuned_model = False
+            logger.info("Rule Engineer Agent с AutoGen инициализирован")
 
+        def generate_rule_with_model(self, problem_description: str, code_example: str = None) -> str:
+            """Генерирует правило с использованием дообученной модели"""
+            if not self.use_fine_tuned_model:
+                return self.create_or_update_rule(problem_description, code_example)
+            
+            # Формируем промпт для модели
+            prompt = self._build_rule_generation_prompt(problem_description, code_example)
+            
+            # Генерируем ответ с помощью модели
+            inputs = self.tokenizer(prompt, return_tensors="pt", max_length=2048, truncation=True)
+            
+            with torch.no_grad():
+                outputs = self.model.generate(
+                    **inputs,
+                    max_new_tokens=1024,
+                    temperature=0.7,
+                    do_sample=True,
+                    pad_token_id=self.tokenizer.eos_token_id
+                )
+            
+            response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+            
+            # Извлекаем YAML из ответа
+            yaml_content = self.extract_yaml_from_response(response)
+            return yaml_content or response
+    
+    def _build_rule_generation_prompt(self, problem_description: str, code_example: str = None) -> str:
+            """Строит промпт для генерации правил Semgrep"""
+            prompt = f"""<s>[INST] Ты - эксперт по безопасности и статическому анализу кода. Создай правило Semgrep для обнаружения следующей уязвимости:
+
+            Описание уязвимости: {problem_description}
+            """
+                    if code_example:
+                        prompt += f"""
+            Пример кода с уязвимостью:
+            ```python
+            {code_example}"""
+            prompt += """
+                Создай точное и эффективное правило Semgrep в формате YAML. Правило должно:
+
+                Точно обнаруживать указанную уязвимость
+
+                Иметь понятное сообщение (message)
+
+                Указать правильную степень серьезности (severity)
+
+                Использовать соответствующие языки (languages)
+
+                Верни только YAML-правило без дополнительных комментариев. [/INST]
+                """
+            return prompt
     def extract_yaml_from_response(self, response: str) -> Optional[str]:
         """
         Извлекает YAML-блок из ответа агента.
