@@ -1,39 +1,54 @@
-# model_loader.py
+# core/model_loader.py
+
 from peft import PeftModel
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
-import os
 
-def load_peft_model(base_model_name, lora_adapters_path, offload_dir="./offload"):
-    """Загружает базовую модель и дообученные LoRA-адаптеры с оффлоудом на CPU"""
-    
-    # Создаем директорию для оффлоуда, если не существует
-    os.makedirs(offload_dir, exist_ok=True)
-    
-    # Загрузка токенизатора и базовой модели с правильными параметрами
+def load_peft_model_simple(base_model_name, lora_adapters_path):
+    """
+    Упрощенная загрузка модели без автоматического оффлоуда.
+    """
+    # Пытаемся загрузить на GPU, если не получится — на CPU
+    if torch.cuda.is_available():
+        device = "cuda"
+        print(f"✅ Используется GPU: {torch.cuda.get_device_name()}")
+    else:
+        device = "cpu"
+        print("⚠️  GPU не обнаружен, используется CPU.")
+
+    # Загрузка токенизатора и базовой модели
     tokenizer = AutoTokenizer.from_pretrained(base_model_name)
     
-    model = AutoModelForCausalLM.from_pretrained(
-        base_model_name,
-        device_map="auto",
-        dtype=torch.float16,  # Используем dtype вместо torch_dtype :cite[2]:cite[5]:cite[8]
-        offload_folder=offload_dir,  # Директория для оффлоуда на CPU
-        offload_state_dict=True,     # Разрешить выгрузку state dict на CPU
-    )
+    # Пробуем загрузить модель на одно устройство
+    try:
+        model = AutoModelForCausalLM.from_pretrained(
+            base_model_name,
+            torch_dtype=torch.float16,
+            device_map=device,  # Пробуем загрузить всё на одно устройство
+            # offload_folder="./offload",  # Закомментируем оффлоуд
+            # offload_state_dict=False,    # Закомментируем оффлоуд
+        )
+    except RuntimeError as e:
+        # Если не хватило памяти, попробуем загрузить на CPU (медленно, но для теста)
+        if "out of memory" in str(e).lower():
+            print("⚠️  Не хватило памяти на GPU, пробуем загрузить на CPU.")
+            model = AutoModelForCausalLM.from_pretrained(
+                base_model_name,
+                torch_dtype=torch.float16,
+                device_map="cpu",
+            )
+        else:
+            raise e
     
-    # Загрузка LoRA-адаптеров с указанием offload_folder
-    model = PeftModel.from_pretrained(
-        model, 
-        lora_adapters_path,
-        offload_folder=offload_dir  # Критически важно для работы с большими моделями
-    )
+    # Загрузка LoRA-адаптеров
+    model = PeftModel.from_pretrained(model, lora_adapters_path)
     
     return model, tokenizer
 
-# Пример использования
+# Для теста используйте эту функцию
 if __name__ == "__main__":
-    model, tokenizer = load_peft_model(
+    model, tokenizer = load_peft_model_simple(
         "codellama/CodeLlama-7b-hf",
         "outputs/codeLlama-7b-semgrep-lora"
     )
-    print("✅ Модель успешно загружена с оффлоудом на CPU")
+    print("✅ Модель загружена в упрощенном режиме!")

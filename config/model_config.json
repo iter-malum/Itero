@@ -1,21 +1,3 @@
-{
-  "agents": {
-    "Search_Agent": {
-      "model_name": "deepseek-coder:6.7b",
-      "purpose": "Поиск и анализ уязвимостей, формулирование запросов",
-      "type": "ollama"
-    },
-    "Rule_Engineer_Agent": {
-      "model_name": "codellama/CodeLlama-7b-hf",
-      "lora_adapters": "../outputs/codeLlama-7b-semgrep-lora",
-      "purpose": "Создание и модификация правил Semgrep",
-      "type": "local_peft",
-      "offload_dir": "./offload"
-    },
-    "Validation_Agent": {
-      "model_name": "deepseek-coder:6.7b",
-      "purpose": "Валидация сгенерированных правил", 
-      "type": "ollama"
-    }
-  }
-}
+version https://git-lfs.github.com/spec/v1
+oid sha256:bba8fd453a96bd8283abd82185c9b1dcd6bd6438dc16eea537a3f12eb4667a37
+size 708
