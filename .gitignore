@@ -1,0 +1,4 @@
+# Semgrep artifacts
+semgrep_rules/
+semgrep_dataset/
+semgrep_dataset_train/
