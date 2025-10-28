@@ -2,3 +2,7 @@
 semgrep_rules/
 semgrep_dataset/
 semgrep_dataset_train/
+
+__pycache__/
+*.pyc
+.env
